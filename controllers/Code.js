@@ -80,3 +80,24 @@ module.exports.postNewCodes = async (req, res, next) => {
     },
   });
 };
+
+module.exports.deleteCodes = async (req, res, next) => {
+  const id = req.params.id;
+
+  const existingCode = await Code.findById(id);
+  if (existingCode) {
+    await existingCode.deleteOne();
+    return res.status(200).json({
+      message: {
+        title: "کد های عملیاتی",
+        message: "کد مورد نظر با موفقیت حذف شد.",
+      },
+    });
+  }
+  return res.status(404).json({
+    message: {
+      title: "کد های عملیاتی",
+      message: "کد مورد نظر پیدا نشد!",
+    },
+  });
+};
