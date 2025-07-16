@@ -12,9 +12,14 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-const { updateMembers, abortUpdate } = require("../controllers/Member");
+const {
+  updateMembers,
+  abortUpdate,
+  getSingleMember,
+} = require("../controllers/Member");
 
 router.post("/update", upload.single("file"), updateMembers);
 router.get("/abort", abortUpdate);
+router.get("/search", getSingleMember);
 
 module.exports = router;

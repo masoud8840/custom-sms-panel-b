@@ -80,3 +80,58 @@ module.exports.abortUpdate = (req, res) => {
   currentAbortController = null;
   res.status(200).json({ message: "Update operation aborted" });
 };
+
+module.exports.getSingleMember = async (req, res, next) => {
+  const {
+    fname,
+    lname,
+    cellphone,
+    nationalityCode,
+    personalCode,
+    page = 1,
+    limit = process.env.LIMIT,
+  } = req.query;
+
+  if (!fname && !lname && !cellphone && !nationalityCode && !personalCode) {
+    return res.status(400).json({
+      message: {
+        title: "درخواست نامعتبر",
+        message: "حداقل یک فیلتر باید ارسال شود.",
+      },
+    });
+  }
+
+  const filters = {};
+  if (fname) filters.fname = { $regex: fname, $options: "i" };
+  if (lname) filters.lname = { $regex: lname, $options: "i" };
+  if (cellphone) filters.cellphone = { $regex: cellphone, $options: "i" };
+  if (nationalityCode)
+    filters.nationalityCode = { $regex: nationalityCode, $options: "i" };
+  if (personalCode)
+    filters.personalCode = { $regex: personalCode, $options: "i" };
+
+  try {
+    const pageNumber = parseInt(page, 10);
+    const pageLimit = parseInt(limit, 10);
+    const skip = (pageNumber - 1) * pageLimit;
+
+    const total = await Member.countDocuments(filters);
+
+    const members = await Member.find(filters)
+      .lean()
+      .skip(skip)
+      .limit(pageLimit);
+
+    return res.status(200).json({
+      data: members,
+      pagination: {
+        total,
+        page: pageNumber,
+        totalPages: Math.ceil(total / pageLimit),
+        limit: pageLimit,
+      },
+    });
+  } catch (err) {
+    next(err); // یا res.status(500).json({ message: "خطای سرور" });
+  }
+};
