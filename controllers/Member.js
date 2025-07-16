@@ -26,7 +26,15 @@ module.exports.updateMembers = async (req, res, next) => {
     await fs.unlink(filePath);
 
     const BATCH_SIZE = 2000;
-    const results = [];
+    const results = {
+      insertedCount: 0,
+      matchedCount: 0,
+      modifiedCount: 0,
+      deletedCount: 0,
+      upsertedCount: 0,
+      upsertedIds: {},
+      insertedIds: {},
+    };
 
     for (let i = 0; i < data.length; i += BATCH_SIZE) {
       if (signal.aborted) {
@@ -57,17 +65,30 @@ module.exports.updateMembers = async (req, res, next) => {
       }));
 
       const result = await Member.bulkWrite(operations);
-      console.log(`Batch ${i / BATCH_SIZE + 1} done`, result);
-      results.push(result);
+      results.deletedCount += result.deletedCount;
+      results.insertedCount += result.insertedCount;
+      results.matchedCount += result.matchedCount;
+      results.modifiedCount += result.modifiedCount;
+      results.upsertedCount += result.upsertedCount;
     }
 
     currentAbortController = null;
 
-    res.status(200).json({
-      message: "Members updated successfully",
+    return res.status(200).json({
+      message: {
+        title: "بروزرسانی اعضاء",
+        message: "فرآیند بروزرسانی اعضاء با موفقیت انجام شد.",
+      },
       results,
     });
-  } catch (err) {}
+  } catch (err) {
+    return res.status(200).json({
+      message: {
+        title: "بروزرسانی اعضاء",
+        message: "فرآیند بروزرسانی اعضاء با خطا مواجه شد!",
+      },
+    });
+  }
 };
 
 module.exports.abortUpdate = (req, res) => {
