@@ -12,8 +12,14 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-const { postBulkSend } = require("../controllers/Message");
+const {
+  postBulkSend,
+  getAllMessages,
+  downloadAllMessages,
+} = require("../controllers/Message");
 
 router.post("/send", upload.single("file"), postBulkSend);
+router.get("/", getAllMessages);
+router.get("/download", downloadAllMessages);
 
 module.exports = router;

@@ -32,8 +32,6 @@ module.exports.updateMembers = async (req, res, next) => {
       modifiedCount: 0,
       deletedCount: 0,
       upsertedCount: 0,
-      upsertedIds: {},
-      insertedIds: {},
     };
 
     for (let i = 0; i < data.length; i += BATCH_SIZE) {

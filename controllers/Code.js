@@ -1,15 +1,13 @@
 const Code = require("../models/Code.js");
 
 module.exports.getCodes = async (req, res, next) => {
-  const codes = await Code.find().lean();
-
-  res.status(200).json({
-    data: codes,
-    message: {
-      title: "",
-      message: "",
-    },
-  });
+  try {
+    const codes = await Code.find().lean();
+    res.status(200).json({
+      data: codes,
+      message: {},
+    });
+  } catch (error) {}
 };
 
 module.exports.getSingleCodes = async (req, res, next) => {
