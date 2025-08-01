@@ -1,9 +1,11 @@
 const Member = require("../models/Member");
+const Code = require("../models/Code");
 const xlsx = require("xlsx");
 const fs = require("fs");
 const { default: axios } = require("axios");
 const Message = require("../models/Messages");
 const { formatMessageSendTime } = require("../utils/time");
+const { replaceTextWithUserFields } = require("../utils/messages");
 
 module.exports.postBulkSend = async (req, res, next) => {
   const filePath = req.file.path;
@@ -18,10 +20,9 @@ module.exports.postBulkSend = async (req, res, next) => {
     }
   });
 
-  const actualText = String(req.body.text);
-  let text = actualText;
+  const text = String(req.body.text);
 
-  const response = {
+  const responses = {
     messages: [],
     cellphones: [],
   };
@@ -31,29 +32,23 @@ module.exports.postBulkSend = async (req, res, next) => {
     const existingUser = await Member.findOne({ cellphone });
 
     if (existingUser) {
-      const regex = /\{\{(.*?)\}\}/g;
-
-      const matches = actualText.match(regex);
-      if (matches)
-        matches.map((m, j) => {
-          const propertyName = m.slice(2, -2);
-          text = text.replace(m, existingUser[propertyName]);
-        });
-
-      response.messages.push(text);
-      response.cellphones.push(existingUser.cellphone);
-
-      text = actualText;
+      const { responseText, cellphone } = replaceTextWithUserFields(
+        existingUser,
+        text
+      );
+      responses.cellphones.push(cellphone);
+      responses.messages.push(responseText);
+      console.log(responses);
     }
   });
 
   await Promise.all(promise);
-
+  console.log("replace done!");
   try {
     const sendBody = JSON.stringify({
-      lineNumber: "30002126",
-      messageTexts: response.messages,
-      mobiles: response.cellphones,
+      lineNumber: process.env.LINE_NUMBER,
+      messageTexts: responses.messages,
+      mobiles: responses.cellphones,
     });
     await axios.post("https://api.sms.ir/v1/send/likeToLike", sendBody, {
       headers: {
@@ -63,6 +58,7 @@ module.exports.postBulkSend = async (req, res, next) => {
       },
     });
   } catch (error) {
+    console.log(error);
     return res.status(400).json({
       message: {
         title: "",
@@ -176,4 +172,53 @@ module.exports.downloadAllMessages = async (req, res, next) => {
     'attachment; filename="messages_export.xlsx"'
   );
   res.send(excelBuffer);
+};
+
+module.exports.postResetMessages = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+
+    const currentCode = await Code.findOne({ code: "3" });
+    if (!currentCode)
+      return res.status(400).json({
+        message: {},
+      });
+
+    const users = {
+      messages: [],
+      cellphones: [],
+    };
+    ids.map(async (id) => {
+      const existingUser = await Member.findOne({ _id: id });
+      if (existingUser) {
+        const { responseText, cellphone } = replaceTextWithUserFields(
+          existingUser,
+          currentCode.response
+        );
+        users.cellphones.push(cellphone);
+        users.messages.push(responseText);
+      }
+    });
+
+    const bodyData = JSON.stringify({
+      lineNumber: process.env.LINE_NUMBER,
+      messageTexts: users.messages,
+      mobiles: users.cellphones,
+    });
+    const response = await axios.post(
+      "https://api.sms.ir/v1/send/likeToLike",
+      bodyData,
+      {
+        headers: {
+          "X-API-KEY": process.env.API_KEY,
+          "Content-Type": "application/json",
+          Accept: "text/plain",
+        },
+      }
+    );
+  } catch (error) {
+    console.log(error);
+  }
+
+  return res.status(200).json({ message: {} });
 };

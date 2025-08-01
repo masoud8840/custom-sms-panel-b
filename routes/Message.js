@@ -16,10 +16,12 @@ const {
   postBulkSend,
   getAllMessages,
   downloadAllMessages,
+  postResetMessages,
 } = require("../controllers/Message");
 
 router.post("/send", upload.single("file"), postBulkSend);
 router.get("/", getAllMessages);
 router.get("/download", downloadAllMessages);
+router.post("/reset", postResetMessages);
 
 module.exports = router;
