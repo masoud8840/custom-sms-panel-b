@@ -3,9 +3,104 @@ const Code = require("../models/Code");
 const xlsx = require("xlsx");
 const fs = require("fs");
 const { default: axios } = require("axios");
-const Message = require("../models/Messages");
+const Message = require("../models/Message");
 const { formatMessageSendTime } = require("../utils/time");
 const { replaceTextWithUserFields } = require("../utils/messages");
+const validateRequiredFields = require("../utils/validateRequiredFields");
+
+const NO_CODE_MESSAGE = ``;
+// const NO_USER_FOUND_MESSAGE = ``;
+// const INVALID_CODE_SENT_MESSAGE = ``;
+
+module.exports.postNewMessage = async (req, res, next) => {
+  try {
+    const MESSAGE_BODY = {
+      message: "",
+      cellphone: "",
+    };
+    const { text, from, to } = req.query;
+    const numericText = Number(text);
+    const existingUser = await Member.findOne({ cellphone: from });
+    if (existingUser) {
+      // اگه کاربر وجود داشت
+
+      if (!!numericText) {
+        // اگه عدد بود
+        const currentCode = await Code.findOne({ code: text });
+        if (currentCode) {
+          // اگه کد بود
+
+          const isMessageDuplicated = await Message.findOne({
+            from_id: existingUser._id,
+            text,
+            from,
+          });
+
+          if (!!!isMessageDuplicated) {
+            const isMatched = validateRequiredFields(
+              existingUser,
+              currentCode.code
+            );
+
+            if (isMatched) {
+              // اگه کد با شرایط متقاضی مطابقت داشت
+              const { responseText, cellphone } = replaceTextWithUserFields(
+                existingUser,
+                currentCode.response
+              );
+              MESSAGE_BODY.message = responseText;
+              MESSAGE_BODY.cellphone = cellphone;
+              const newMessage = new Message({
+                from,
+                text,
+                to,
+                from_id: existingUser._id,
+              });
+              await newMessage.save();
+              existingUser.messages_sent.push(newMessage._id);
+              await existingUser.save();
+            } else {
+              // اگه کد با شرایط متقاضی مطابقت نداشت
+              const { responseText, cellphone } = replaceTextWithUserFields(
+                existingUser,
+                currentCode.deniedResponse
+              );
+              MESSAGE_BODY.message = responseText;
+              MESSAGE_BODY.cellphone = cellphone;
+            }
+          } else {
+            // اگر کد ارسال شده تکراری بود
+          }
+        } else {
+          // اگه کد نبود
+          MESSAGE_BODY.message = NO_CODE_MESSAGE;
+          MESSAGE_BODY.cellphone = existingUser.cellphone;
+        }
+      } else {
+        // اگه پیامک ارسال شده عدد نبود
+      }
+    } else {
+      // اگه شماره تلفن (عضو) وحود نداشت
+    }
+
+    const sendBody = JSON.stringify({
+      lineNumber: process.env.LINE_NUMBER,
+      messageTexts: [MESSAGE_BODY.message],
+      mobiles: [MESSAGE_BODY.cellphone],
+    });
+
+    await axios.post("https://api.sms.ir/v1/send/likeToLike", sendBody, {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/plain",
+        "X-API-KEY": process.env.API_KEY,
+      },
+    });
+    return res.status(201).json({ message: {} });
+  } catch (error) {
+    console.log(error);
+  }
+};
 
 module.exports.postBulkSend = async (req, res, next) => {
   const filePath = req.file.path;
@@ -38,12 +133,10 @@ module.exports.postBulkSend = async (req, res, next) => {
       );
       responses.cellphones.push(cellphone);
       responses.messages.push(responseText);
-      console.log(responses);
     }
   });
 
   await Promise.all(promise);
-  console.log("replace done!");
   try {
     const sendBody = JSON.stringify({
       lineNumber: process.env.LINE_NUMBER,
@@ -97,7 +190,17 @@ module.exports.getAllMessages = async (req, res, next) => {
   const pageLimit = parseInt(limit, 10);
   const skip = (pageNumber - 1) * pageLimit;
 
-  const data = await Message.find(filters).lean().limit(pageLimit).skip(skip);
+  // TODO:
+  const data = await Message.find(filters)
+    .populate({
+      path: "from_id",
+      model: "Member",
+    })
+    .lean()
+    .limit(pageLimit)
+    .skip(skip)
+    .sort({ createdAt: -1 });
+
   const total = await Message.countDocuments(filters);
   return res.status(200).json({
     message: {},

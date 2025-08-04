@@ -13,6 +13,9 @@ const codeSchema = new Schema({
     type: String,
     required: true,
   },
+  deniedResponse: {
+    type: String,
+  },
 });
 
 module.exports = model("Code", codeSchema);

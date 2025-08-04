@@ -56,11 +56,11 @@ module.exports.updateSingleCodes = async (req, res, next) => {
 };
 
 module.exports.postNewCodes = async (req, res, next) => {
-  const { code, name, response } = req.body;
+  const { code, name, response, deniedResponse } = req.body;
 
   const existingCode = await Code.findOne({ code });
   if (!existingCode) {
-    const newCode = new Code({ code, name, response });
+    const newCode = new Code({ code, name, response, deniedResponse });
     await newCode.save();
 
     return res.status(201).json({

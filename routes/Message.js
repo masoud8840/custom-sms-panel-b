@@ -17,7 +17,11 @@ const {
   getAllMessages,
   downloadAllMessages,
   postResetMessages,
+  postNewMessage,
 } = require("../controllers/Message");
+
+// especial get request due to 'ایده پردازان' API which sends get request for creating new SMS
+router.get("/new", postNewMessage);
 
 router.post("/send", upload.single("file"), postBulkSend);
 router.get("/", getAllMessages);

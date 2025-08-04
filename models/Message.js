@@ -16,6 +16,7 @@ const MessageSchema = new mongoose.Schema(
     },
     from_id: {
       type: mongoose.Types.ObjectId,
+      rel: "Member",
       required: true,
     },
   },
