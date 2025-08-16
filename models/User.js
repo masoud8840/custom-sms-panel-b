@@ -13,10 +13,13 @@ const userSchema = new Schema({
     type: String,
     required: true,
   },
+  verified: {
+    type: Boolean,
+    default: false,
+  },
   role: {
     type: String,
-    enum: ["Admin", "User"],
-    default: "User",
+    required: true,
   },
 });
 

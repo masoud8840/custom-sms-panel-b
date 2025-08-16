@@ -1,6 +1,7 @@
 const xlsx = require("xlsx");
 const fs = require("fs").promises;
 const Member = require("../models/Member");
+const adminAccess = require("../utils/admin-access");
 
 // متغیر سراسری داخل این ماژول برای نگهداری کنترلر جاری
 let currentAbortController = null;
@@ -13,6 +14,8 @@ module.exports.updateMembers = async (req, res, next) => {
         .status(409)
         .json({ message: "Another update operation is already running." });
     }
+    const hasAccess = adminAccess(req.headers.authorization);
+    if (!hasAccess) return res.status(401).json({});
 
     const abortController = new AbortController();
     currentAbortController = abortController;
@@ -90,6 +93,8 @@ module.exports.updateMembers = async (req, res, next) => {
 };
 
 module.exports.abortUpdate = (req, res) => {
+  const hasAccess = adminAccess(req.headers.authorization);
+  if (!hasAccess) return res.status(401).json({});
   if (!currentAbortController) {
     return res
       .status(404)

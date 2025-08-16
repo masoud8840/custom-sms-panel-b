@@ -7,6 +7,7 @@ const Message = require("../models/Message");
 const { formatMessageSendTime } = require("../utils/time");
 const { replaceTextWithUserFields } = require("../utils/messages");
 const validateRequiredFields = require("../utils/validateRequiredFields");
+const adminAccess = require("../utils/admin-access");
 
 const NO_CODE_MESSAGE = ``;
 // const NO_USER_FOUND_MESSAGE = ``;
@@ -104,6 +105,9 @@ module.exports.postNewMessage = async (req, res, next) => {
 
 module.exports.postBulkSend = async (req, res, next) => {
   try {
+    const hasAccess = adminAccess(req.headers.authorization);
+    if (!hasAccess) return res.status(401).json({});
+
     const filePath = req.file.path;
     const file = xlsx.readFile(filePath);
     const sheetName = file.SheetNames[0];
@@ -278,6 +282,9 @@ module.exports.downloadAllMessages = async (req, res, next) => {
 
 module.exports.postResetMessages = async (req, res, next) => {
   try {
+    const hasAccess = adminAccess(req.headers.authorization);
+    if (!hasAccess) return res.status(401).json({});
+
     const { ids } = req.body;
 
     const currentCode = await Code.findOne({ code: "3" });
