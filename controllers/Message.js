@@ -169,6 +169,21 @@ module.exports.postBulkSend = async (req, res, next) => {
   });
 };
 
+module.exports.postSendSingleMessage = async (req, res, next) => {
+  try {
+    const { cellphone, codeId } = req.body;
+
+    const codeResponse = await Code.findById(codeId).lean();
+    const sendingMsg = await fetch(
+      `http://localhost:3001/api/v1/messages/new?to=30002126&from=${cellphone}&text=${codeResponse.code}`
+    );
+    // const sendingRes = await sendingMsg.json();
+    return res.status(200).json({ message: { title: "", message: "" } });
+  } catch (error) {
+    return res.status(400).json({ message: { title: "", message: "" } });
+  }
+};
+
 module.exports.getAllMessages = async (req, res, next) => {
   try {
     const {

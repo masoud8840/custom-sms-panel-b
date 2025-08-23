@@ -7,8 +7,9 @@ module.exports.getCodes = async (req, res, next) => {
     if (!hasAccess) return res.status(401).json({});
 
     const codes = await Code.find().lean();
+
     res.status(200).json({
-      data: codes,
+      data: codes.sort((a, b) => Number(a.code) - Number(b.code)),
       message: {},
     });
   } catch (error) {}

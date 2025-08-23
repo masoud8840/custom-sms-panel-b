@@ -18,14 +18,16 @@ const {
   downloadAllMessages,
   postResetMessages,
   postNewMessage,
+  postSendSingleMessage,
 } = require("../controllers/Message");
 
 // especial get request due to 'ایده پردازان' API which sends get request for creating new SMS
 router.get("/new", postNewMessage);
 
+router.post("/sendfrom", postSendSingleMessage);
 router.post("/send", upload.single("file"), postBulkSend);
-router.get("/", getAllMessages);
 router.get("/download", downloadAllMessages);
 router.post("/reset", postResetMessages);
+router.get("/", getAllMessages);
 
 module.exports = router;

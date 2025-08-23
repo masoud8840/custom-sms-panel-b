@@ -1,0 +1,9 @@
+GET http://localhost:3001/api/v1/messages/new?text=20&from=9126065244&to=30002126
+###
+POST http://localhost:3001/api/v1/messages/sendfrom 
+Accept: application/json
+
+{
+  "cellphone": 9370700162,
+  "codeId": "awdasd"
+}
