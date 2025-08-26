@@ -140,27 +140,34 @@ module.exports.getUsers = async (req, res, next) => {
 };
 
 module.exports.getVerifyUser = async (req, res, next) => {
-  const { id } = req.params;
+  try {
+    const { id } = req.params;
 
-  // TODO: check for administration
-  const hasAccess = adminAccess(req.headers.authorization);
-  if (!hasAccess) return res.status(401).json({});
+    // TODO: check for administration
+    const hasAccess = adminAccess(req.headers.authorization);
+    if (!hasAccess) return res.status(401).json({});
 
-  const existingUser = await User.findById(id);
-  if (existingUser) {
-    existingUser.verified = !existingUser.verified;
-    await existingUser.save();
-    return res.status(200).json({
-      message: { title: "", message: "" },
+    const existingUser = await User.findById(id);
+    if (existingUser) {
+      existingUser.verified = !existingUser.verified;
+      await existingUser.save();
+      return res.status(200).json({
+        message: {
+          title: "مدیریت حساب کاربران",
+          message: `حساب کاربری مورد نظر ${
+            existingUser.verified ? "فعال" : "غیرفعال"
+          } شد`,
+        },
+      });
+    }
+  } catch (error) {
+    return res.status(400).json({
+      message: {
+        title: "مدیریت حساب کاربران",
+        message: "مشکلی در انجام تغییرات پیش آمده است!",
+      },
     });
   }
-
-  return res.status(400).json({
-    message: {
-      title: "",
-      message: "",
-    },
-  });
 };
 
 module.exports.deleteUser = async (req, res, next) => {
@@ -176,16 +183,17 @@ module.exports.deleteUser = async (req, res, next) => {
       await existingUser.deleteOne();
       return res.status(200).json({
         message: {
-          title: "!عملیات موفق",
+          title: "مدیریت حساب کاربران",
           message: "کاربر مورد نظر با موفقیت حذف شد.",
         },
       });
     }
+  } catch (error) {
     return res.status(400).json({
       message: {
-        title: "عملیات ناموفق!",
+        title: "مدیریت حساب کاربران",
         message: "عملیات مورد نظر با خطا مواجه شد!",
       },
     });
-  } catch (error) {}
+  }
 };

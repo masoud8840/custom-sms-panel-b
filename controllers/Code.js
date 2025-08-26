@@ -92,7 +92,7 @@ module.exports.postNewCodes = async (req, res, next) => {
   return res.status(400).json({
     message: {
       title: "کد های عملیاتی",
-      message: `کد عملیاتی ${code} تکراری است!`,
+      message: `کد عملیاتی ${code} وجود دارد!`,
     },
   });
 };

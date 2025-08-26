@@ -14,6 +14,7 @@ const NO_CODE_MESSAGE = ``;
 // const INVALID_CODE_SENT_MESSAGE = ``;
 
 module.exports.postNewMessage = async (req, res, next) => {
+  const error = new Error();
   try {
     const MESSAGE_BODY = {
       message: "",
@@ -71,6 +72,8 @@ module.exports.postNewMessage = async (req, res, next) => {
             }
           } else {
             // اگر کد ارسال شده تکراری بود
+            error.message = "این شخص قبلا این کد را ارسال کرده است!";
+            error.name = "خطا در ارسال";
           }
         } else {
           // اگه کد نبود
@@ -81,9 +84,16 @@ module.exports.postNewMessage = async (req, res, next) => {
         // اگه پیامک ارسال شده عدد نبود
       }
     } else {
+      error.message = "شماره تلفن عضو در سامانه موجود نمیباشد!";
+      error.name = "خطا در ارسال";
       // اگه شماره تلفن (عضو) وحود نداشت
     }
 
+    if (
+      !(MESSAGE_BODY.cellphone.length > 0 && MESSAGE_BODY.message.length > 0)
+    ) {
+      throw error;
+    }
     const sendBody = JSON.stringify({
       lineNumber: process.env.LINE_NUMBER,
       messageTexts: [MESSAGE_BODY.message],
@@ -97,9 +107,17 @@ module.exports.postNewMessage = async (req, res, next) => {
         "X-API-KEY": process.env.API_KEY,
       },
     });
-    return res.status(201).json({ message: {} });
+    return res.status(201).json({
+      message: {
+        title: "ارسال پیامکی",
+        message: "پیام مورد نظر با موفقیت ارسال شد.",
+      },
+    });
   } catch (error) {
-    console.log(error);
+    return res
+      .status(400)
+      .json({ message: { title: error.name, message: error.message } });
+    // .json({ message: { title: error.name, message: error.cause } });
   }
 };
 
@@ -142,46 +160,61 @@ module.exports.postBulkSend = async (req, res, next) => {
     });
 
     await Promise.all(promise);
+
     const sendBody = JSON.stringify({
       lineNumber: process.env.LINE_NUMBER,
       messageTexts: responses.messages,
       mobiles: responses.cellphones,
     });
-    await axios.post("https://api.sms.ir/v1/send/likeToLike", sendBody, {
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "text/plain",
-        "X-API-KEY": process.env.API_KEY,
+    const response = await axios.post(
+      "https://api.sms.ir/v1/send/likeToLike",
+      sendBody,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/plain",
+          "X-API-KEY": process.env.API_KEY,
+        },
+      }
+    );
+    return res.status(200).json({
+      message: {
+        title: "ارسال گروهی",
+        message: "ارسال پیامکها با موفقیت انجام شد.",
       },
     });
   } catch (error) {
-    console.log(error);
     return res.status(400).json({
       message: {
-        title: "",
-        message: error.message,
+        title: "ارسال گروهی",
+        message: "خطا در خواندن فایل ارسالی!",
       },
     });
   }
-
-  return res.status(200).json({
-    data,
-  });
 };
 
 module.exports.postSendSingleMessage = async (req, res, next) => {
   try {
     const { cellphone, codeId } = req.body;
-
     const codeResponse = await Code.findById(codeId).lean();
-    const sendingMsg = await fetch(
+
+    res.redirect(
       `http://localhost:3001/api/v1/messages/new?to=30002126&from=${cellphone}&text=${codeResponse.code}`
     );
-    // const sendingRes = await sendingMsg.json();
-    return res.status(200).json({ message: { title: "", message: "" } });
   } catch (error) {
-    return res.status(400).json({ message: { title: "", message: "" } });
+    console.log("ERROR");
   }
+  //   const sendingMsg = await fetch(
+  //     `http://localhost:3001/api/v1/messages/new?to=30002126&from=${cellphone}&text=${codeResponse.code}`
+  //   );
+  //   const sendingRes = await sendingMsg.json();
+  //   console.log(sendingMsg);
+  //   return res
+  //     .status(200)
+  //     .json({ message: { title: sendingRes, message: "" } });
+  // } catch (error) {
+  //   return res.status(400).json({ message: { title: "", message: "" } });
+  // }
 };
 
 module.exports.getAllMessages = async (req, res, next) => {
@@ -312,17 +345,31 @@ module.exports.postResetMessages = async (req, res, next) => {
       messages: [],
       cellphones: [],
     };
-    ids.map(async (id) => {
-      const existingUser = await Member.findOne({ _id: id });
-      if (existingUser) {
+    const promise = ids.map(async (id) => {
+      // const existingUser = await Member.findOne({ _id: id });
+      // console.log(existingUser);
+      const existingMsg = await Message.findById(id).populate({
+        path: "from_id",
+        model: "Member",
+      });
+
+      if (existingMsg) {
+        const resetPasswordMessage = existingMsg.from_id.messages_sent.find(
+          (m) => m._id.toString() === id
+        );
+        await Message.deleteOne(resetPasswordMessage);
+        await existingMsg.deleteOne();
+
         const { responseText, cellphone } = replaceTextWithUserFields(
-          existingUser,
+          existingMsg.from_id,
           currentCode.response
         );
         users.cellphones.push(cellphone);
         users.messages.push(responseText);
       }
     });
+
+    await Promise.all(promise);
 
     const bodyData = JSON.stringify({
       lineNumber: process.env.LINE_NUMBER,
@@ -340,9 +387,13 @@ module.exports.postResetMessages = async (req, res, next) => {
         },
       }
     );
+    return res.status(200).json({
+      message: {
+        title: "ارسال پیامکی",
+        message: "پاسخ بازیابی رمز عبور پیامک شد.",
+      },
+    });
   } catch (error) {
-    console.log(error);
+    return res.status(400).json({ message: {} });
   }
-
-  return res.status(200).json({ message: {} });
 };
