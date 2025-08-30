@@ -9,9 +9,10 @@ const { replaceTextWithUserFields } = require("../utils/messages");
 const validateRequiredFields = require("../utils/validateRequiredFields");
 const adminAccess = require("../utils/admin-access");
 
-const NO_CODE_MESSAGE = ``;
-// const NO_USER_FOUND_MESSAGE = ``;
-// const INVALID_CODE_SENT_MESSAGE = ``;
+// const NO_CODE_MESSAGE = ``;
+const NO_USER_FOUND_MESSAGE = `عضو محترم ، شماره همراهی که با آن پیام ارسال کرده اید در سامانه صندوق وجود ندارد. لطفا با شماره همراهی که در فیش حقوقی تان ثبت شده است پیام ارسال کنید و اگر در فیش حقوقی تان شماره همراهی ثبت نشده در اولین فرصت به دفاتر ساتای شهر خود مراجعه نمائید و شماره همراه مربوط به خود را ثبت کنید. پس از درج شماره همراه در فیش حقوقی تان کد دستوری مورد نظرتان را به سرشماره 30002126 پیامک کنید`;
+const INVALID_CODE_SENT_MESSAGE = `عضو محترم ، این سامانه فقط و فقط کد های دستوری تعریف شده و اعلام شده را ثبت میکند لذا تاکید میگردد از ارسال متن خودداری نمائید و فقط کد دستوری مورد نظر را پیامک کنید.`;
+const DUPLICATED_CODE_MESSAGE = `عضو محترم ، شما یکبار کد دستوری مورد نظر را ارسال کرده اید لطفا ار ازسال مجدد کد دستوری اکیدا خودداری نمائید.`;
 
 module.exports.postNewMessage = async (req, res, next) => {
   const error = new Error();
@@ -25,7 +26,6 @@ module.exports.postNewMessage = async (req, res, next) => {
     const existingUser = await Member.findOne({ cellphone: from });
     if (existingUser) {
       // اگه کاربر وجود داشت
-
       if (!!numericText) {
         // اگه عدد بود
         const currentCode = await Code.findOne({ code: text });
@@ -74,16 +74,22 @@ module.exports.postNewMessage = async (req, res, next) => {
             // اگر کد ارسال شده تکراری بود
             error.message = "این شخص قبلا این کد را ارسال کرده است!";
             error.name = "خطا در ارسال";
+            MESSAGE_BODY.message = DUPLICATED_CODE_MESSAGE;
+            MESSAGE_BODY.cellphone = existingUser.cellphone;
           }
         } else {
           // اگه کد نبود
-          MESSAGE_BODY.message = NO_CODE_MESSAGE;
+          MESSAGE_BODY.message = INVALID_CODE_SENT_MESSAGE;
           MESSAGE_BODY.cellphone = existingUser.cellphone;
         }
       } else {
         // اگه پیامک ارسال شده عدد نبود
+        MESSAGE_BODY.message = INVALID_CODE_SENT_MESSAGE;
+        MESSAGE_BODY.cellphone = existingUser.cellphone;
       }
     } else {
+      MESSAGE_BODY.message = NO_USER_FOUND_MESSAGE;
+      MESSAGE_BODY.cellphone = from;
       error.message = "شماره تلفن عضو در سامانه موجود نمیباشد!";
       error.name = "خطا در ارسال";
       // اگه شماره تلفن (عضو) وحود نداشت
