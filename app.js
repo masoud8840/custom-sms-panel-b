@@ -25,6 +25,9 @@ app.use(`${baseUrl}/messages`, messageRoute);
 const memberRoute = require("./routes/Member");
 app.use(`${baseUrl}/members`, memberRoute);
 
+const unknownCell = require("./routes/UnknownCell.js");
+app.use(`${baseUrl}/unknownCell`, unknownCell);
+
 initializeMongodb(() => {
   app.listen(3001, () => {
     console.log("Application is listening on port 3001".yellow.bold);

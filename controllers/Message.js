@@ -1,5 +1,6 @@
 const Member = require("../models/Member");
 const Code = require("../models/Code");
+const UnknownCell = require("../models/UnknownCell");
 const xlsx = require("xlsx");
 const fs = require("fs");
 const { default: axios } = require("axios");
@@ -13,6 +14,7 @@ const adminAccess = require("../utils/admin-access");
 const NO_USER_FOUND_MESSAGE = `عضو محترم ، شماره همراهی که با آن پیام ارسال کرده اید در سامانه صندوق وجود ندارد. لطفا با شماره همراهی که در فیش حقوقی تان ثبت شده است پیام ارسال کنید و اگر در فیش حقوقی تان شماره همراهی ثبت نشده در اولین فرصت به دفاتر ساتای شهر خود مراجعه نمائید و شماره همراه مربوط به خود را ثبت کنید. پس از درج شماره همراه در فیش حقوقی تان کد دستوری مورد نظرتان را به سرشماره 30002126 پیامک کنید`;
 const INVALID_CODE_SENT_MESSAGE = `عضو محترم ، این سامانه فقط و فقط کد های دستوری تعریف شده و اعلام شده را ثبت میکند لذا تاکید میگردد از ارسال متن خودداری نمائید و فقط کد دستوری مورد نظر را پیامک کنید.`;
 const DUPLICATED_CODE_MESSAGE = `عضو محترم ، شما یکبار کد دستوری مورد نظر را ارسال کرده اید لطفا ار ازسال مجدد کد دستوری اکیدا خودداری نمائید.`;
+const ALLOWED_DUPLICATES = ["1", "2"];
 
 module.exports.postNewMessage = async (req, res, next) => {
   const error = new Error();
@@ -24,77 +26,81 @@ module.exports.postNewMessage = async (req, res, next) => {
     const { text, from, to } = req.query;
     const numericText = Number(text);
     const existingUser = await Member.findOne({ cellphone: from });
-    if (existingUser) {
-      // اگه کاربر وجود داشت
-      if (!!numericText) {
-        // اگه عدد بود
-        const currentCode = await Code.findOne({ code: text });
-        if (currentCode) {
-          // اگه کد بود
+    if (!["11", "12"].includes(text)) {
+      if (existingUser) {
+        // اگه کاربر وجود داشت
+        if (!!numericText) {
+          // اگه عدد بود
+          const currentCode = await Code.findOne({ code: text });
+          if (currentCode) {
+            // اگه کد بود
 
-          const isMessageDuplicated = await Message.findOne({
-            from_id: existingUser._id,
-            text,
-            from,
-          });
+            const isMessageDuplicated = await Message.findOne({
+              from_id: existingUser._id,
+              text,
+              from,
+            });
 
-          if (!!!isMessageDuplicated) {
-            const isMatched = validateRequiredFields(
-              existingUser,
-              currentCode.code
-            );
-
-            if (isMatched) {
-              // اگه کد با شرایط متقاضی مطابقت داشت
-              const { responseText, cellphone } = replaceTextWithUserFields(
+            if (!!!isMessageDuplicated || ALLOWED_DUPLICATES.includes(text)) {
+              const isMatched = validateRequiredFields(
                 existingUser,
-                currentCode.response
+                currentCode.code
               );
-              MESSAGE_BODY.message = responseText;
-              MESSAGE_BODY.cellphone = cellphone;
-              const newMessage = new Message({
-                from,
-                text,
-                to,
-                from_id: existingUser._id,
-              });
-              await newMessage.save();
-              existingUser.messages_sent.push(newMessage._id);
-              await existingUser.save();
+
+              if (isMatched) {
+                // اگه کد با شرایط متقاضی مطابقت داشت
+                const { responseText, cellphone } = replaceTextWithUserFields(
+                  existingUser,
+                  currentCode.response
+                );
+                MESSAGE_BODY.message = responseText;
+                MESSAGE_BODY.cellphone = cellphone;
+                const newMessage = new Message({
+                  from,
+                  text,
+                  to,
+                  from_id: existingUser._id,
+                });
+                await newMessage.save();
+                existingUser.messages_sent.push(newMessage._id);
+                await existingUser.save();
+              } else {
+                // اگه کد با شرایط متقاضی مطابقت نداشت
+                const { responseText, cellphone } = replaceTextWithUserFields(
+                  existingUser,
+                  currentCode.deniedResponse
+                );
+                MESSAGE_BODY.message = responseText;
+                MESSAGE_BODY.cellphone = cellphone;
+              }
             } else {
-              // اگه کد با شرایط متقاضی مطابقت نداشت
-              const { responseText, cellphone } = replaceTextWithUserFields(
-                existingUser,
-                currentCode.deniedResponse
-              );
-              MESSAGE_BODY.message = responseText;
-              MESSAGE_BODY.cellphone = cellphone;
+              // اگر کد ارسال شده تکراری بود
+              error.message = "این شخص قبلا این کد را ارسال کرده است!";
+              error.name = "خطا در ارسال";
+              MESSAGE_BODY.message = DUPLICATED_CODE_MESSAGE;
+              MESSAGE_BODY.cellphone = existingUser.cellphone;
             }
           } else {
-            // اگر کد ارسال شده تکراری بود
-            error.message = "این شخص قبلا این کد را ارسال کرده است!";
-            error.name = "خطا در ارسال";
-            MESSAGE_BODY.message = DUPLICATED_CODE_MESSAGE;
+            // اگه کد نبود
+            MESSAGE_BODY.message = INVALID_CODE_SENT_MESSAGE;
             MESSAGE_BODY.cellphone = existingUser.cellphone;
           }
         } else {
-          // اگه کد نبود
+          // اگه پیامک ارسال شده عدد نبود
           MESSAGE_BODY.message = INVALID_CODE_SENT_MESSAGE;
           MESSAGE_BODY.cellphone = existingUser.cellphone;
         }
       } else {
-        // اگه پیامک ارسال شده عدد نبود
-        MESSAGE_BODY.message = INVALID_CODE_SENT_MESSAGE;
-        MESSAGE_BODY.cellphone = existingUser.cellphone;
+        const newUnknownCell = new UnknownCell({ cellphone: from, text });
+        await newUnknownCell.save();
+        // should be added here
+        MESSAGE_BODY.message = NO_USER_FOUND_MESSAGE;
+        MESSAGE_BODY.cellphone = from;
+        error.message = "شماره تلفن عضو در سامانه موجود نمیباشد!";
+        error.name = "خطا در ارسال";
+        // اگه شماره تلفن (عضو) وحود نداشت
       }
-    } else {
-      MESSAGE_BODY.message = NO_USER_FOUND_MESSAGE;
-      MESSAGE_BODY.cellphone = from;
-      error.message = "شماره تلفن عضو در سامانه موجود نمیباشد!";
-      error.name = "خطا در ارسال";
-      // اگه شماره تلفن (عضو) وحود نداشت
     }
-
     if (
       !(MESSAGE_BODY.cellphone.length > 0 && MESSAGE_BODY.message.length > 0)
     ) {
@@ -205,7 +211,7 @@ module.exports.postSendSingleMessage = async (req, res, next) => {
     const codeResponse = await Code.findById(codeId).lean();
 
     res.redirect(
-      `http://localhost:3001/api/v1/messages/new?to=30002126&from=${cellphone}&text=${codeResponse.code}`
+      `http://81.12.41.178:81/api/v1/messages/new?to=30002126&from=${cellphone}&text=${codeResponse.code}`
     );
   } catch (error) {
     console.log("ERROR");

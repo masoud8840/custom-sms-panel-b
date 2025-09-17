@@ -11,6 +11,9 @@ module.exports.getCodes = async (req, res, next) => {
     res.status(200).json({
       data: codes.sort((a, b) => Number(a.code) - Number(b.code)),
       message: {},
+      pagination: {
+        total: codes.length,
+      },
     });
   } catch (error) {}
 };
